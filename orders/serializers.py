@@ -17,10 +17,12 @@ class OrderItemSerializer(serializers.ModelSerializer):
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     address = AddressSerializer()
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
     
     class Meta:
         model = Order
-        fields = ('id', 'user', 'address', 'created_at', 'payment_method', 'total', 'completed', 'items')
+        fields = ('id', 'user', 'address', 'created_at', 'payment_method', 
+                 'total', 'status', 'status_display', 'canceled_at', 'items')
 
 class CreateOrderItemSerializer(serializers.ModelSerializer):
     class Meta:
@@ -36,8 +38,18 @@ class CreateOrderSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         items_data = validated_data.pop('items')
-        order = Order.objects.create(**validated_data)
+        order = Order.objects.create(
+            **validated_data,
+            user=self.context['request'].user,
+            status='pending'
+        )
         
+        # Calculate and set total
+        total = sum(item['item'].price * item['quantity'] for item in items_data)
+        order.total = total
+        order.save()
+        
+        # Create order items
         for item_data in items_data:
             OrderItem.objects.create(
                 order=order,
