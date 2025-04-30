@@ -30,24 +30,28 @@ class OrderListView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def get_serializer_class(self):
-        """Uses different serializers for GET vs POST"""
         return CreateOrderSerializer if self.request.method == 'POST' else OrderSerializer
-    
+
     def get_queryset(self):
-        """Returns filtered orders with optimized queries"""
         queryset = Order.objects.filter(
             user=self.request.user
         ).select_related('address').prefetch_related('items__item')
         
-        # Status filtering
         if status := self.request.query_params.get('status'):
             queryset = queryset.filter(status=status)
         
-        # Hide canceled unless requested
         if self.request.query_params.get('show_canceled', 'false').lower() != 'true':
             queryset = queryset.exclude(status='canceled')
             
         return queryset.order_by('-created_at')
+    
+    def post(self, request, *args, **kwargs):
+        serializer = CreateOrderSerializer(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            order = serializer.save()
+            return Response(OrderSerializer(order, context={'request': request}).data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class OrderDetailView(generics.RetrieveUpdateAPIView):  # Changed to support updates
     serializer_class = OrderSerializer
