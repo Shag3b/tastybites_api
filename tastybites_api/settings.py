@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'accounts',
     'menu',
     'orders',
+     'drf_yasg',  # Add turlhis line
 ]
 
 MIDDLEWARE = [
